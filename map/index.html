@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Bangladesh Weather Map</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  
+<header>
+  <h1>AuroraTide</h1>
+  <input id="search-box" type="text" placeholder="Search location..."/>
+</header>
+<!-- Simple sign-up form 
+<div id="signup-section">
+  <h2>Sign Up</h2>
+  <input type="text" id="username" placeholder="Username" />
+  <input type="text" id="default-location" placeholder="Your City or Location" />
+  <button onclick="signUp()">Sign Up</button>
+</div> -->
+
+<main>
+  <div id="map"></div>
+  <div id="info-box">
+    <div id="weather-content" class="weather-card">
+      <div class="location-time">
+        <div id="city-name">Select a place</div>
+        <div id="date-time"></div>
+      </div>
+      <div class="main-weather">
+        <img id="weather-icon" src="" alt="Weather icon" />
+        <div class="temp" id="temperature">--°C</div>
+        <div id="description">--</div>
+      </div>
+      <div class="extra-info">
+        <p><strong>Humidity:</strong> <span id="humidity">--%</span></p>
+        <p><strong>Wind Speed:</strong> <span id="wind">-- km/h</span></p>
+      </div>
+      <div class="forecast-container" id="forecast"></div>
+      <canvas id="tempChart" width="400" height="150"></canvas>
+    </div>
+  </div>
+</main>
+
+<!-- Google Maps API -->
+<script
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCoso-PJF_eza8Sbbh7NyTxkE6uOhOhexM&libraries=places&callback=initMap"
+  async defer></script>
+
+<script src="script.js"></script>
+
+</body>
+</html>
