@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Flood Awareness Chatbot</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: #e5ddd5;
+    }
+
+    #chat-container {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      background: #ece5dd;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .message {
+      max-width: 70%;
+      padding: 10px 15px;
+      margin: 5px;
+      border-radius: 20px;
+      font-size: 16px;
+      line-height: 1.4;
+      word-wrap: break-word;
+      display: inline-block;
+    }
+
+    .user {
+      align-self: flex-end;
+      background-color: #dcf8c6;
+      border-bottom-right-radius: 0;
+    }
+
+    .bot {
+      align-self: flex-start;
+      background-color: #fff;
+      border-bottom-left-radius: 0;
+    }
+
+    #user-input {
+      display: flex;
+      padding: 10px;
+      background: #ddd;
+      border-top: 1px solid #ccc;
+    }
+
+    #user-input input {
+      flex: 1;
+      padding: 10px 15px;
+      font-size: 16px;
+      border-radius: 20px;
+      border: none;
+      outline: none;
+    }
+
+    #user-input button {
+      padding: 10px 20px;
+      margin-left: 10px;
+      font-size: 16px;
+      background:#1E90FF;
+      color: white;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+    }
+
+    #mic-button {
+      background: #34b7f1;
+    }
+
+    #map {
+      height: 300px;
+    }
+
+    .alert {
+      background-color: #f44336;
+      color: white;
+      padding: 15px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body><div style="padding: 10px; background: #1E90FF; color: white;">
+  Language: 
+  <select id="language-select" onchange="changeLanguage()" style="padding: 5px; border-radius: 5px;">
+    <option value="en">English</option>
+    <option value="bn">বাংলা</option>
+  </select>
+</div>
+
+<div id="chat-container"></div>
+<div id="map"></div>
+<div id="user-input">
+  <input type="text" id="input" placeholder="Type a message...">
+  <button onclick="sendMessage()">Send</button>
+  <button id="mic-button" onclick="startListening()">🎙️</button>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+  let selectedLanguage = 'en';
+  function changeLanguage() {
+  const langDropdown = document.getElementById('language-select');
+  selectedLanguage = langDropdown.value;
+}
+const shelterData = [
+  {
+    name: "Tejgaon Government Shelter",
+    location: "Tejgaon, Dhaka",
+    contact: "01711-123456",
+    lat: 23.7514,
+    lng: 90.3925
+  },
+  {
+    name: "Mirpur Community Center",
+    location: "Mirpur-10, Dhaka",
+    contact: "01711-234567",
+    lat: 23.8045,
+    lng: 90.3667
+  },
+  {
+    name: "Motijheel Relief Camp",
+    location: "Motijheel, Dhaka",
+    contact: "01711-345678",
+    lat: 23.7351,
+    lng: 90.4120
+  },
+  {
+    name: "Uttara Flood Relief Center",
+    location: "Sector 10, Uttara, Dhaka",
+    contact: "01711-456789",
+    lat: 23.8759,
+    lng: 90.3796
+  }
+];
+let shelterMarkers = [];
+
+
+  const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+  recognition.lang = selectedLanguage === 'bn' ? 'bn-BD' : 'en-US';
+
+  const map = L.map('map').setView([23.8103, 90.4125], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+ 
+
+
+navigator.geolocation.getCurrentPosition(pos => {
+  const { latitude, longitude } = pos.coords;
+
+  map.setView([latitude, longitude], 13);
+
+  // Add a marker for current location
+  L.marker([latitude, longitude])
+    .addTo(map)
+    .bindPopup("📍 You are here")
+    .openPopup();
+
+  // Optional: show accuracy radius
+  L.circle([latitude, longitude], {
+    radius: pos.coords.accuracy,
+    color: 'blue',
+    fillColor: '#blue',
+    fillOpacity: 0.2
+  }).addTo(map);
+
+  fetchWeather(latitude, longitude);
+});
+
+
+  function fetchWeather(lat, lon) {
+    const apiKey = 'YOUR_API_KEY';
+    fetch(`https://api.openweathermap.org/data/2.5/onecall?lat=${lat}&lon=${lon}&appid=${apiKey}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.alerts) {
+          data.alerts.forEach(alert => {
+            let alertBox = document.createElement('div');
+            alertBox.className = 'alert';
+            alertBox.innerText = `${alert.event}: ${alert.description}`;
+            document.body.prepend(alertBox);
+          });
+        }
+      });
+  }
+
+  async function sendMessage() {
+  let inputField = document.getElementById('input');
+  let userText = inputField.value.trim();
+  if (!userText) return;
+
+  addMessage(userText, 'user');
+  const typing = addMessage("Bot is typing...", 'bot');
+
+  // 🔽 🔽 Add this block to hide previous shelter markers if not a shelter-related query
+  if (userText.toLowerCase().includes('shelter') === false &&
+      userText.toLowerCase().includes('আশ্রয়কেন্দ্র') === false) {
+    shelterMarkers.forEach(marker => map.removeLayer(marker));
+    shelterMarkers = [];
+  }
+
+  setTimeout(async () => {
+    let response = smartBot(userText);
+
+    if (response === 'loading_shelters') {
+      response = await fetchShelterData();  // Show shelter markers again
+    }
+
+    updateMessage(typing, response);
+  }, 1000);
+
+  inputField.value = '';
+  inputField.focus();
+}
+
+
+
+  function addMessage(text, sender) {
+    let chat = document.getElementById('chat-container');
+    let msg = document.createElement('div');
+    msg.className = 'message ' + sender;
+    msg.innerText = text;
+    chat.appendChild(msg);
+    chat.scrollTop = chat.scrollHeight;
+    return msg;
+  }
+
+  function updateMessage(el, newText) {
+  el.innerText = newText;
+  speak(newText, selectedLanguage); // 🔊 Speak the response
+}
+
+
+  function smartBot(input) {
+  input = input.toLowerCase();
+
+  const lang = selectedLanguage; // Use dropdown-selected language
+
+  const responses = {
+    greeting: {
+      en: "Hello! 🌧️ Ask me anything about flood prevention, emergency actions, or shelters.",
+      bn: "হ্যালো! 🌧️ বন্যা প্রতিরোধ, জরুরি পদক্ষেপ বা আশ্রয় কেন্দ্র সম্পর্কে জানতে চাইলে বলো।"
+    },
+    prevention: {
+      en: "Flood prevention includes tree planting, building embankments, improving drainage, and early warning systems.",
+      bn: "বন্যা প্রতিরোধে গাছ লাগানো, বাঁধ তৈরি, ড্রেনেজ উন্নয়ন এবং পূর্ব সতর্কীকরণ ব্যবস্থা গুরুত্বপূর্ণ।"
+    },
+    duringFlood: {
+      en: "During a flood, stay calm, go to higher ground, turn off power, and keep emergency supplies ready.",
+      bn: "বন্যার সময় শান্ত থাকো, উঁচু জায়গায় যাও, বিদ্যুৎ বন্ধ করো এবং জরুরি জিনিসপত্র প্রস্তুত রাখো।"
+    },
+    afterFlood: {
+      en: "After a flood, clean and disinfect everything, drink safe water, and seek medical help if needed.",
+      bn: "বন্যার পরে সব কিছু পরিষ্কার করো, বিশুদ্ধ পানি পান করো এবং প্রয়োজনে চিকিৎসা নাও।"
+    },
+    reliefCenters: {
+      en: "loading_shelters",
+      bn: "loading_shelters"
+    },
+    emergencyContacts: {
+      en: "In an emergency, call 999 (Bangladesh). You can also contact Disaster Management or the Red Crescent.",
+      bn: "জরুরিতে ৯৯৯ নম্বরে কল করো। ত্রাণ ও পুনর্বাসন অধিদপ্তর বা রেড ক্রিসেন্টের সাথেও যোগাযোগ করো।"
+    },
+    unknown: {
+      en: "I'm here to help with flood safety and support. Could you rephrase your question?",
+      bn: "আমি বন্যা সংক্রান্ত তথ্য দিতে প্রস্তুত। অনুগ্রহ করে প্রশ্নটি একটু বিস্তারিত বলো।"
+    }
+  };
+
+  if (input.includes('hello') || input.includes('হ্যালো') || input.includes('hi')) {
+    return responses.greeting[lang];
+  }
+
+  if (input.includes('prevent') || input.includes('প্রতিরোধ') || input.includes('stop flood')) {
+    return responses.prevention[lang];
+  }
+
+  if (
+  input.includes('after flood') || 
+  input.includes('what to do after') || 
+  input.includes('post flood') || 
+  input.includes('বন্যার পরে')
+) {
+  return responses.afterFlood[lang];
+}
+
+if (
+  input.includes('during flood') || 
+  input.includes('what to do during') || 
+  input.includes('বন্যার সময়') ||
+  (input.includes('flood') && input.includes('do'))
+) {
+  return responses.duringFlood[lang];
+}
+
+if (
+  input.includes('shelter') || 
+  input.includes('nearest shelter') || 
+  input.includes('relief center') || 
+  input.includes('আশ্রয়কেন্দ্র')
+) {
+  return responses.reliefCenters[lang];
+}
+
+
+  if (input.includes('emergency') || input.includes('contact') || input.includes('জরুরি')) {
+    return responses.emergencyContacts[lang];
+  }
+
+  return responses.unknown[lang];
+}
+async function fetchShelterData() {
+  // Clear old markers first
+  shelterMarkers.forEach(marker => map.removeLayer(marker));
+  shelterMarkers = [];
+
+  let message = "🏠 Available Flood Shelters:\n";
+
+  shelterData.forEach((shelter, index) => {
+    message += `\n${index + 1}. ${shelter.name}\n📍 ${shelter.location}\n📞 ${shelter.contact}\n`;
+
+    // Create and store shelter marker
+    const marker = L.marker([shelter.lat, shelter.lng])
+      .addTo(map)
+      .bindPopup(`<b>${shelter.name}</b><br>${shelter.location}<br>📞 ${shelter.contact}`);
+    
+    shelterMarkers.push(marker);
+  });
+
+  return message;
+}
+
+function startListening() {
+  recognition.lang = selectedLanguage === 'bn' ? 'bn-BD' : 'en-US';
+  recognition.start();
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    document.getElementById('input').value = transcript;
+    sendMessage();
+  };
+}
+function speak(text, lang) {
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = lang === 'bn' ? 'bn-BD' : 'en-US';
+  utterance.rate = 1;
+  speechSynthesis.speak(utterance);
+}
+
+</script>
+</body>
+</html>
